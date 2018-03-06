@@ -1,5 +1,5 @@
 <?php
-
+defined( 'ABSPATH' ) or die( 'No script kiddies please!' );
 /*
 Plugin Name: HideCategory
 Plugin URI: 
