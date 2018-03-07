@@ -2,16 +2,16 @@
 defined( 'ABSPATH' ) or die( 'No script kiddies please!' );
 /*
 Plugin Name: HideCategory
-Plugin URI: 
-Description: 
+Plugin URI: http://www.warewolf.cz/hidecategory/
+Description: Hide categories from menu
 Version: 1.0.0
 Author: WarewolfCZ
-Author URI: 
+Author URI: http://www.warewolf.cz
 License: GPLv2
 */
 
 /* 
-Copyright (C) 2018 denis
+Copyright (C) 2018 WarewolfCZ
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -27,3 +27,19 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
+
+define( 'HCAT_VERSION', '1.0.0' );
+define( 'HCAT_MINIMUM_WP_VERSION', '4.2' );
+define( 'HCAT_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+
+register_activation_hook( __FILE__, array( 'HideCategory', 'plugin_activation' ) );
+register_deactivation_hook( __FILE__, array( 'HideCategory', 'plugin_deactivation' ) );
+
+require_once( HCAT_PLUGIN_DIR . '/includes/HideCategory.class.php' );
+
+add_action( 'init', array( 'HideCategory', 'init' ) );
+
+if ( is_admin() || ( defined( 'WP_CLI' ) && WP_CLI ) ) {
+	require_once( HCAT_PLUGIN_DIR . '/admin/HideCategoryAdmin.class.php' );
+	add_action( 'init', array( 'HideCategoryAdmin', 'init' ) );
+}
