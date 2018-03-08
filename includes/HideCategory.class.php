@@ -234,7 +234,7 @@ class HideCategory {
 				$found = true;
 				break;
 			} elseif ( is_array( $item ) ) {
-				$found = in_array_recursive( $needle, $item );
+				$found = $this->in_array_recursive( $needle, $item );
 				if ( $found ) {
 					break;
 				}
