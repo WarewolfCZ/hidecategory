@@ -154,7 +154,7 @@ class HideCategory {
 		$options = self::hcat_get_options();
 
 		//Exclude calls from the Yoast SEO Video Sitemap plugin
-		if ( $query->is_home && !in_array_recursive( 'WPSEO_Video_Sitemap', $backtrace ) ) {
+		if ( $query->is_home && !$this->in_array_recursive( 'WPSEO_Video_Sitemap', $backtrace ) ) {
 			$mbccount = 0;
 			foreach ( $options['exclude_main'] as $value ) {
 				$array2[$mbccount] = $value;
@@ -224,6 +224,24 @@ class HideCategory {
 			$result = $menu;
 		}
 		return $result;
+	}
+
+	private function in_array_recursive( $needle, $haystack ) {
+		$found = false;
+
+		foreach ( $haystack as $item ) {
+			if ( $item === $needle ) {
+				$found = true;
+				break;
+			} elseif ( is_array( $item ) ) {
+				$found = in_array_recursive( $needle, $item );
+				if ( $found ) {
+					break;
+				}
+			}
+		}
+
+		return $found;
 	}
 
 }
