@@ -12,26 +12,46 @@
  */
 class HideCategory {
 
-	private static $initiated = false;
+	private $initiated = false;
 
-	public static function init() {
-		if ( !self::$initiated ) {
-			self::init_hooks();
+	const HCAT_CATEGORIES_OPTION = 'hcat_hidden_categories';
+	const HCAT_OPTIONS_DEFINITION = array(
+		'exclude_main' => array(),
+		'exclude_menu' => array(),
+		'exclude_feed' => array(),
+		'exclude_archives' => array(),
+		'exclude_search' => array()
+	);
+	const HCAT_OPTIONS_NAMES = array(
+		'exclude_main' => 'Exclude from Front Page?',
+		'exclude_menu' => 'Exclude from Menus',
+		'exclude_feed' => 'Exclude from Feeds?',
+		'exclude_archives' => 'Exclude from All Archives?',
+		'exclude_search' => 'Exclude from Search?'
+	);
+
+	public function init() {
+		if ( !$this->initiated ) {
+			$this->init_hooks();
 		}
 	}
 
 	/**
 	 * Initializes WordPress hooks®
 	 */
-	private static function init_hooks() {
-		self::$initiated = true;
+	private function init_hooks() {
+		$this->initiated = true;
+		add_filter( 'pre_get_posts', array( $this, 'hcat_exclude_categories' ) );
+		add_filter( "widget_categories_args", array( $this, "hcat_exclude_widget_categories" ) );
+		add_filter( 'wp_nav_menu_items', array( $this, 'hcat_nav_menu_items' ) );
+		add_filter( 'nav_menu_css_class', array( $this, 'hcat_category_nav_class' ), 10, 2 );
 	}
 
 	/**
 	 * Attached to activate_{ plugin_basename( __FILES__ ) } by register_activation_hook()
 	 * @static
 	 */
-	public static function plugin_activation() {
+	public function plugin_activation() {
 		if ( version_compare( $GLOBALS['wp_version'], HCAT_MINIMUM_WP_VERSION, '<' ) ) {
 			load_plugin_textdomain( 'hcat' );
 
@@ -42,7 +62,7 @@ class HideCategory {
 									. 'a current version</a>.', 'hcat' ), ''
 							. 'https://codex.wordpress.org/Upgrading_WordPress' );
 
-			Dropship::bail_on_activation( $message );
+			$this->bail_on_activation( $message );
 		}
 	}
 
@@ -50,11 +70,11 @@ class HideCategory {
 	 * Removes all connection options
 	 * @static
 	 */
-	public static function plugin_deactivation() {
+	public function plugin_deactivation() {
 		return '';
 	}
 
-	private static function bail_on_activation( $message, $deactivate = true ) {
+	private function bail_on_activation( $message, $deactivate = true ) {
 		?>
 		<!doctype html>
 		<html>
@@ -93,6 +113,117 @@ class HideCategory {
 			}
 		}
 		exit;
+	}
+
+	public static function hcat_get_options() {
+		$options = get_option( self::HCAT_CATEGORIES_OPTION );
+
+		if ( !is_array( $options ) || empty( $options ) ) {
+			$options = self::array_clone( self::HCAT_OPTIONS_DEFINITION );
+			update_option( self::HCAT_CATEGORIES_OPTION, $options );
+		}
+		return $options;
+	}
+
+	private static function array_clone( $array ) {
+		array_walk_recursive( $array, function(&$value) {
+			if ( is_object( $value ) ) {
+				$value = clone $value;
+			}
+		} );
+		return $array;
+	}
+
+	function hcat_exclude_widget_categories( $args ) {
+		$options = self::hcat_get_options();
+		if ( isset( $options['exclude_menu'] ) ) {
+			$excludes = array();
+			foreach ( $options['exclude_menu'] as $value ) {
+				$excludes[] = -1 * $value;
+			}
+
+			$args["exclude"] = implode( ',', $excludes ); // The IDs of the excluded categories
+		}
+		return $args;
+	}
+
+	public function hcat_exclude_categories( $query ) {
+		$backtrace = debug_backtrace();
+		$array2[0] = "";
+		unset( $array2[0] );
+		$options = self::hcat_get_options();
+
+		//Exclude calls from the Yoast SEO Video Sitemap plugin
+		if ( $query->is_home && !in_array_recursive( 'WPSEO_Video_Sitemap', $backtrace ) ) {
+			$mbccount = 0;
+			foreach ( $options['exclude_main'] as $value ) {
+				$array2[$mbccount] = $value;
+				$mbccount++;
+			}
+			$query->set( 'category__not_in', $array2 );
+		}
+
+		if ( $query->is_feed ) {
+			$mbccount = 0;
+			foreach ( $options['exclude_feed'] as $value ) {
+				$array2[$mbccount] = $value;
+				$mbccount++;
+			}
+			$query->set( 'category__not_in', $array2 );
+		}
+
+		if ( !current_user_can( 'manage_options' ) && $query->is_search ) {
+			$mbccount = 0;
+			foreach ( $options['exclude_search'] as $value ) {
+				$array2[$mbccount] = $value;
+				$mbccount++;
+			}
+			$query->set( 'category__not_in', $array2 );
+		}
+
+		if ( !current_user_can( 'manage_options' ) && $query->is_archive ) {
+			$mbccount = 0;
+			foreach ( $options['exclude_archives'] as $value ) {
+				$array2[$mbccount] = $value;
+				$mbccount++;
+			}
+			$query->set( 'category__not_in', $array2 );
+		}
+
+		return $query;
+	}
+
+	public function hcat_category_nav_class( $classes, $item ) {
+		if ( 'category' == $item->object ) {
+			$classes[] = 'hcat-menu-category-' . $item->object_id;
+		}
+		return $classes;
+	}
+
+	public function hcat_nav_menu_items( $menu ) {
+		$lines = explode( "\n", $menu );
+		$result = '';
+		if ( !current_user_can( 'manage_options' ) ) {
+			$options = self::hcat_get_options();
+			if ( isset( $options['exclude_menu'] ) ) {
+				$excludes = array();
+				foreach ( $options['exclude_menu'] as $value ) {
+					$excludes[] = -1 * $value;
+				}
+
+				foreach ( $lines as $line ) {
+					foreach ( $excludes as $id ) {
+						if ( strpos( $line, 'hcat-menu-category-' . $id ) !== false ) {
+							continue 2;
+						}
+					}
+					$result .= $line . "\n";
+				}
+			}
+		} else {
+			$result = $menu;
+		}
+		return $result;
 	}
 
 }

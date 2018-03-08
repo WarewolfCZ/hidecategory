@@ -12,82 +12,101 @@
  */
 class HideCategoryAdmin {
 
-	private static $initiated = false;
+	private $initiated = false;
 
-	public static function init() {
-		if ( !self::$initiated ) {
-			self::init_hooks();
+	const HCAT_HIDDEN_FIELD_NAME = 'hcat_submit_hidden';
+
+	public function init() {
+		if ( !$this->initiated ) {
+			$this->init_hooks();
 		}
 	}
 
-	public static function init_hooks() {
+	public function init_hooks() {
 		// Add the options page and menu item.
-		add_action( 'admin_menu', array( self::class, 'admin_menu' ) );
-		self::register_mysettings();
-		self::$initiated = true;
+		add_action( 'admin_menu', array( $this, 'admin_menu' ) );
+		$this->register_mysettings();
+		$this->initiated = true;
 	}
 
-	public static function admin_menu() {
+	public function admin_menu() {
 		add_options_page(
-				__( 'HideCategory Plugin Options', 'hcat' ), __( 'HideCategory', 'hcat' ), 'manage_options', 'hcat_options', array( self::class, 'hcat_plugin_options' )
+				__( 'HideCategory Plugin Options', 'hcat' ), __( 'HideCategory', 'hcat' ), 'manage_options', 'hcat_options', array( $this, 'hcat_plugin_options' )
 		);
 	}
 
-	public static function register_mysettings() { // whitelist options
-		add_option( 'mt_favorite_color', '', NULL, 'yes' );
+	public function register_mysettings() { // whitelist options
+		add_option( HideCategory::HCAT_CATEGORIES_OPTION, HideCategory::HCAT_OPTIONS_DEFINITION, NULL, 'yes' );
 	}
 
-	/** Step 3. */
-	public static function hcat_plugin_options() {
+	private function hcat_process() {
+		foreach ( HideCategory::HCAT_OPTIONS_DEFINITION as $key => $value ) {
+			if ( !isset( $_POST[$key] ) ) {
+				$_POST[$key] = array();
+			}
+			$options[$key] = $_POST[$key];
+		}
+		update_option( HideCategory::HCAT_CATEGORIES_OPTION, $options );
+		$message = "<div class='updated'><p>" . ( __( 'Settings saved.', 'hcat' ) ) . "</p></div>";
+		return $message;
+	}
+
+	public function hcat_plugin_options() {
 		if ( !current_user_can( 'manage_options' ) ) {
 			wp_die( __( 'You do not have sufficient permissions to access this page.' ) );
 		}
-// variables for the field and option names 
-		$opt_name = 'mt_favorite_color';
-		$hidden_field_name = 'mt_submit_hidden';
-		$data_field_name = 'mt_favorite_color';
-
-		// Read in existing option value from database
-		$opt_val = get_option( $opt_name );
-
+		// variables for the field and option names 
 		// See if the user has posted us some information
 		// If they did, this hidden field will be set to 'Y'
-		if ( isset( $_POST[$hidden_field_name] ) && $_POST[$hidden_field_name] == 'Y' ) {
-			// Read their posted value
-			$opt_val = $_POST[$data_field_name];
+		if ( isset( $_POST[self::HCAT_HIDDEN_FIELD_NAME] ) && $_POST[self::HCAT_HIDDEN_FIELD_NAME] == 'Y' ) {
+			$message = $this->hcat_process();
 
-			// Save the posted value in the database
-			update_option( $opt_name, $opt_val );
-
-			// Put a "settings saved" message on the screen
-			?>
-			<div class="updated"><p><strong><?php _e( 'Settings saved.', 'hcat' ); ?></strong></p></div>
-			<?php
+			if ( isset( $message ) ) {
+				echo $message;
+			}
 		}
 
-		// Now display the settings editing screen
 
-		echo '<div class="wrap">';
-
-		// header
-
-		echo "<h2>" . __( 'HideCategory Plugin Settings', 'hcat' ) . "</h2>";
-
-		// settings form
+		$options = HideCategory::hcat_get_options();
 		?>
-
-		<form name="form1" method="post" action="">
-			<input type="hidden" name="<?php echo $hidden_field_name; ?>" value="Y">
-
-			<p><?php _e( "Favorite Color:", 'hcat' ); ?> 
-				<input type="text" name="<?php echo $data_field_name; ?>" value="<?php echo $opt_val; ?>" size="20">
-			</p><hr />
-
-			<p class="submit">
-				<input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e( 'Save Changes' ) ?>" />
-			</p>
-
-		</form>
+		<div class="wrap">
+			<h2><?php _e( 'HideCategory Plugin Settings', 'hcat' ); ?></h2>
+			<p><?php _e( 'Use this page to select the categories you wish to exclude and where you would like to exclude them from.', 'hcat' ); ?></p>
+			<form action="" method="post">
+				<table class="widefat">
+					<thead>
+						<tr>
+							<th scope="col"><?php _e( 'Category', 'hcat' ); ?></th>
+							<?php foreach ( $options as $key => $option ) { ?>
+							<th scope="col"><?php _e( HideCategory::HCAT_OPTIONS_NAMES[$key], 'hcat' ); ?></th>
+							<?php } ?>
+						</tr>
+					</thead>
+					<tbody id="the-list">
+						<?php
+						$args = array(
+							'hide_empty' => 0,
+							'order' => 'ASC'
+						);
+						$cats = get_categories( $args );
+						$alternate = TRUE;
+						foreach ( $cats as $cat ) {
+							$alternate = !$alternate;
+							?><tr class='<?php echo ($alternate ? 'alternate' : ''); ?>'>
+								<th scope="row"><?php echo $cat->cat_name; ?></th>
+								<?php foreach ( $options as $key => $option ) { ?>
+									<td>
+										<input type="checkbox" name="<?php echo $key; ?>[]" value="-<?php echo $cat->cat_ID ?>" <?php echo (in_array( '-' . $cat->cat_ID, $option ) ? 'checked="true"' : ''); ?>/>
+									</td>
+								<?php } ?>
+							</tr>			
+						<?php } ?>
+				</table>
+				<p class="submit">
+					<input type="submit" class="button-primary" value="<?php _e( 'Update', 'hcat' ); ?>" />
+				</p>
+				<input type="hidden" name="<?php echo self::HCAT_HIDDEN_FIELD_NAME; ?>" value="Y">
+			</form>
 		</div>
 
 		<?php

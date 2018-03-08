@@ -32,14 +32,17 @@ define( 'HCAT_VERSION', '1.0.0' );
 define( 'HCAT_MINIMUM_WP_VERSION', '4.2' );
 define( 'HCAT_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
-register_activation_hook( __FILE__, array( 'HideCategory', 'plugin_activation' ) );
-register_deactivation_hook( __FILE__, array( 'HideCategory', 'plugin_deactivation' ) );
-
 require_once( HCAT_PLUGIN_DIR . '/includes/HideCategory.class.php' );
+$hideCategory = new HideCategory();
 
-add_action( 'init', array( 'HideCategory', 'init' ) );
+register_activation_hook( __FILE__, array( $hideCategory, 'plugin_activation' ) );
+register_deactivation_hook( __FILE__, array( $hideCategory, 'plugin_deactivation' ) );
+
+
+add_action( 'init', array( $hideCategory, 'init' ) );
 
 if ( is_admin() || ( defined( 'WP_CLI' ) && WP_CLI ) ) {
 	require_once( HCAT_PLUGIN_DIR . '/admin/HideCategoryAdmin.class.php' );
-	add_action( 'init', array( 'HideCategoryAdmin', 'init' ) );
+	$hideCategoryAdmin = new HideCategoryAdmin();
+	add_action( 'init', array( $hideCategoryAdmin, 'init' ) );
 }
